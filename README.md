@@ -24,11 +24,67 @@ pip install -U pip
 pip install -r requirements.txt  # optional if you use the OpenAI adapter
 ```
 
-Run the example script:
+Run the example script to see the framework in action:
 
 ```bash
 python examples/basic_usage.py
 ```
+
+The example shows how to:
+
+1. Implement a tool (a simple weather lookup mock).
+2. Register that tool with the `Agent` so it can be invoked dynamically.
+3. Provide a conversation turn to the agent and inspect the response.
+
+Feel free to copy the script as a starting point for your own workflow or run
+it inside a Python REPL to experiment with the abstractions interactively.
+
+## Building Your Own Workflow
+
+The framework exposes a few key concepts that mirror the n8n primitives:
+
+- **AgentConfig** – wires together the chat model, memory backend, tools, and
+  output parser. Create a configuration object once and reuse it across
+  invocations.
+- **Agent** – the runtime orchestrator. Instantiate it with an `AgentConfig`
+  and call `agent.run("your prompt")` to process a request.
+- **ToolRegistry** – a container for your callable tools. Each tool is a
+  function with a schema describing its expected arguments and a docstring that
+  acts as the model-facing description.
+- **OutputParser** – optional component that can translate raw model responses
+  into structured Python objects (JSON, Pydantic models, etc.).
+
+A minimal custom agent might look like this:
+
+```python
+from agent_framework import (
+    Agent,
+    AgentConfig,
+    ConversationMemory,
+    FunctionTool,
+    ToolRegistry,
+)
+from agent_framework.chat_model import OpenAIChatModel
+
+
+def add(a: float, b: float) -> float:
+    """Add two numbers."""
+    return a + b
+
+
+tools = ToolRegistry([FunctionTool.from_callable(add)])
+config = AgentConfig(
+    model=OpenAIChatModel(api_key="sk-..."),
+    memory=ConversationMemory(),
+    tools=tools,
+)
+
+agent = Agent(config)
+print(agent.run("What is 2 + 2?"))
+```
+
+Swap in your own chat model implementation if you prefer a different LLM
+provider or run a local model.
 
 ## Deploying on AWS
 
@@ -50,4 +106,15 @@ def handler(event, context):
 ```
 
 From there you can package the project using AWS SAM, Serverless Framework, or
-container images hosted on Amazon ECR.
+container images hosted on Amazon ECR. A typical deployment flow is:
+
+1. Expose an HTTP endpoint (FastAPI, Flask, Chalice, Lambda + API Gateway) that
+   instantiates the agent once per process and reuses it for requests.
+2. Configure your model credentials via environment variables or a secrets
+   manager (e.g., `OPENAI_API_KEY`).
+3. Package the code with its dependencies and deploy to your chosen compute
+   target.
+
+Because the abstractions are pure Python, you can unit-test your tools and
+custom logic with standard testing frameworks (pytest, unittest) before
+shipping to production.
