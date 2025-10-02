@@ -125,3 +125,19 @@ container images hosted on Amazon ECR. A typical deployment flow is:
 Because the abstractions are pure Python, you can unit-test your tools and
 custom logic with standard testing frameworks (pytest, unittest) before
 shipping to production.
+
+## Consolidating Git Branches into `master`
+
+If your GitHub project has accumulated many feature branches, you can use the
+utility in `scripts/merge_all_branches.py` to merge everything back into
+`master` in a single sweep. The helper defaults to a dry-run so you can review
+the planned operations before executing them:
+
+```bash
+python scripts/merge_all_branches.py --create-master-from work
+```
+
+Once the output looks correct, repeat the command with `--execute` to perform
+the merges. You can also skip specific branches by adding
+`--ignore branch_one branch_two` or allow fast-forward merges with
+`--allow-fast-forward`.
