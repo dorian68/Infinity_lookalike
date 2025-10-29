@@ -14,7 +14,8 @@ dependencies = [
   "python-dotenv>=1.0",
   "openai>=1.10",
   "mcp>=0.1",
-  "composio>=0.3"
+  "composio>=0.3",
+  "python-telegram-bot>=20.6"
 ]
 
 [project.optional-dependencies]

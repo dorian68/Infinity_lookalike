@@ -127,6 +127,48 @@ connecteurs et aux actions attendus. Une fois la suite terminée, vous devez
 obtenir un résumé `1 passed` ou `2 passed` selon les options activées, sans
 erreurs.
 
+## Tester l'agent en conditions réelles avec Telegram
+
+Pour discuter avec l'agent et piloter les connexions Composio utilisateur par
+utilisateur, vous pouvez lancer le bot Telegram inclus.
+
+1. Créez un bot via [@BotFather](https://t.me/BotFather) et récupérez le jeton
+   d'accès, puis renseignez la variable `TELEGRAM_BOT_TOKEN` dans votre fichier
+   `.env`.
+2. Installez les dépendances (voir section *Installation*) puis lancez le bot :
+
+   ```bash
+   python -m mcp_customer_service.telegram_bot
+   ```
+
+   ou créez un petit script :
+
+   ```python
+   from mcp_customer_service import TelegramCustomerAgentBot
+   from mcp_customer_service.config import get_settings
+
+   settings = get_settings()
+   bot = TelegramCustomerAgentBot(token=settings.telegram_bot_token)
+   bot.run()
+   ```
+
+3. Depuis Telegram, envoyez `/start` pour découvrir les commandes :
+   - `/channel <canal>` pour choisir le canal simulé (WhatsApp, LinkedIn,
+     Gmail, Outlook, Instagram).
+   - `/connect <canal>` pour générer un lien Composio OAuth permettant à
+     l'utilisateur de connecter son propre compte (Google, Meta, etc.).
+   - `/installations` pour vérifier les connecteurs réellement associés au
+     compte Composio de l'utilisateur.
+   - `/setmeta <clé> <valeur>` pour fournir des identifiants précis (adresse
+     email, numéro WhatsApp, profil LinkedIn…) utilisés lors de l'envoi.
+
+Le bot réutilise exactement le même orchestrateur que l'API MCP : chaque
+message envoyé depuis Telegram est transformé en `CustomerPayload`, passé au LLM
+et, si les identifiants sont disponibles, la réponse est envoyée via Composio
+sur le canal sélectionné. En absence de clés API ou de connecteurs installés,
+le bot fonctionne en mode simulation et indique clairement l'état des
+installations.
+
 ## Licence
 
 MIT

@@ -195,6 +195,207 @@ class ComposioClient:
         reason = "; ".join(dict.fromkeys(issues)) if issues else None
         return available, reason
 
+    # ------------------------------------------------------------------
+    # Gestion des installations utilisateurs
+    def generate_installation_link(
+        self,
+        channel: SupportChannel,
+        external_user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Crée un lien d'installation OAuth pour un utilisateur final.
+
+        Lorsque Composio n'est pas initialisé, un lien simulé est retourné pour
+        permettre les tests manuels sans dépendances externes.
+        """
+
+        connector_spec = self.CHANNEL_CONNECTORS.get(channel)
+        if connector_spec is None:
+            return {
+                "status": "unsupported",
+                "reason": f"Canal {channel.value} non configuré",
+            }
+
+        if not self._client:
+            return {
+                "status": "simulated",
+                "channel": channel.value,
+                "url": f"https://example.com/composio/install/{channel.value}",
+            }
+
+        installations_client = self._resolve_installations_client()
+        if installations_client is None:
+            return {
+                "status": "error",
+                "channel": channel.value,
+                "reason": "Le SDK Composio ne fournit pas d'API d'installation",
+            }
+
+        request_payload = self._build_installation_payload(
+            connector_spec["connector"], external_user_id
+        )
+
+        for method_name in (
+            "create_installation_link",
+            "create_link",
+            "create",
+            "generate_link",
+            "generate",
+        ):
+            method = getattr(installations_client, method_name, None)
+            if callable(method):
+                try:
+                    result = method(**request_payload)
+                    response = self._normalize_installation_response(result)
+                    response.setdefault("status", "live")
+                    response.setdefault("channel", channel.value)
+                    return response
+                except TypeError:
+                    # Essaye sans l'identifiant externe si la signature ne le supporte pas
+                    trimmed_payload = {
+                        key: value
+                        for key, value in request_payload.items()
+                        if key != "external_user_id"
+                    }
+                    try:
+                        result = method(**trimmed_payload)
+                        response = self._normalize_installation_response(result)
+                        response.setdefault("status", "live")
+                        response.setdefault("channel", channel.value)
+                        return response
+                    except Exception as exc:  # pragma: no cover - dépend du SDK
+                        return {
+                            "status": "error",
+                            "channel": channel.value,
+                            "reason": str(exc),
+                        }
+                except Exception as exc:  # pragma: no cover - dépend du SDK
+                    return {
+                        "status": "error",
+                        "channel": channel.value,
+                        "reason": str(exc),
+                    }
+
+        return {
+            "status": "error",
+            "channel": channel.value,
+            "reason": "Aucune méthode compatible pour générer un lien",
+        }
+
+    def list_user_installations(
+        self, external_user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Répertorie les installations existantes pour un utilisateur final."""
+
+        if not self._client:
+            return {
+                "status": "simulated",
+                "installations": [],
+            }
+
+        installations_client = self._resolve_installations_client()
+        if installations_client is None:
+            return {
+                "status": "error",
+                "reason": "Le SDK Composio ne fournit pas d'API d'installation",
+                "installations": [],
+            }
+
+        method = getattr(installations_client, "list", None)
+        if not callable(method):
+            return {
+                "status": "error",
+                "reason": "Méthode list() indisponible sur installations",
+                "installations": [],
+            }
+
+        try:
+            if external_user_id is not None:
+                result = method(external_user_id=external_user_id)
+            else:
+                result = method()
+        except TypeError:
+            # Certains SDK utilisent une signature différente
+            result = method()
+        except Exception as exc:  # pragma: no cover - dépend du SDK
+            return {
+                "status": "error",
+                "reason": str(exc),
+                "installations": [],
+            }
+
+        installations = self._normalize_installations_list(result)
+        return {
+            "status": "live",
+            "installations": installations,
+        }
+
+    # ------------------------------------------------------------------
+    # Helpers internes
+    def _resolve_installations_client(self) -> Any:
+        """Récupère le client gérant les installations utilisateurs."""
+
+        if not self._client:
+            return None
+
+        for attr in ("installations", "connections", "integrations", "oauth"):
+            candidate = getattr(self._client, attr, None)
+            if candidate is not None:
+                return candidate
+        return None
+
+    @staticmethod
+    def _build_installation_payload(
+        connector_slug: str, external_user_id: Optional[str]
+    ) -> Dict[str, Any]:
+        payload = {"connector": connector_slug}
+        if external_user_id:
+            payload.update(
+                {
+                    "external_user_id": external_user_id,
+                    "metadata": {"external_user_id": external_user_id},
+                }
+            )
+        return payload
+
+    @staticmethod
+    def _normalize_installation_response(result: Any) -> Dict[str, Any]:
+        """Harmonise la réponse en dictionnaire simple."""
+
+        if isinstance(result, dict):
+            response = dict(result)
+        elif hasattr(result, "__dict__"):
+            response = dict(result.__dict__)
+        else:
+            response = {"raw": result}
+
+        url = None
+        for key in ("url", "authorization_url", "auth_url", "link"):
+            value = response.get(key)
+            if isinstance(value, str):
+                url = value
+                break
+        if url is None and isinstance(result, str):
+            url = result
+
+        if url:
+            response["url"] = url
+
+        return response
+
+    @staticmethod
+    def _normalize_installations_list(result: Any) -> List[Dict[str, Any]]:
+        """Normalise une liste d'installations utilisateur renvoyée par Composio."""
+
+        normalized: List[Dict[str, Any]] = []
+        for item in ComposioClient._normalize_collection(result):
+            if isinstance(item, dict):
+                normalized.append(item)
+            elif hasattr(item, "__dict__"):
+                normalized.append(dict(item.__dict__))
+            else:
+                normalized.append({"value": item})
+        return normalized
+
     @staticmethod
     def _entry_in_collection(expected: str, collection: Any, keys: tuple[str, ...]) -> bool:
         """Détermine si une valeur correspondante est présente dans une collection."""

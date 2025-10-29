@@ -22,6 +22,11 @@ class Settings(BaseSettings):
         description="Clé API Composio pour orchestrer les intégrations.",
         env="COMPOSIO_API_KEY",
     )
+    telegram_bot_token: str = Field(
+        default="",
+        description="Jeton d'accès Telegram pour lancer le bot de test.",
+        env="TELEGRAM_BOT_TOKEN",
+    )
     default_model: str = Field(
         default="gpt-4o-mini",
         env="DEFAULT_MODEL",
@@ -43,7 +48,7 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         case_sensitive = False
 
-    @validator("openai_api_key", "composio_api_key", pre=True)
+    @validator("openai_api_key", "composio_api_key", "telegram_bot_token", pre=True)
     def _clean_api_keys(cls, value: Optional[str]) -> str:
         if value is None:
             return ""

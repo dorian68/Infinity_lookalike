@@ -16,8 +16,9 @@ sys.modules.setdefault("mcp_customer_service", package)
 
 
 class _SettingsStub:
-    def __init__(self, composio_api_key: str = "", **_: str) -> None:
+    def __init__(self, composio_api_key: str = "", telegram_bot_token: str = "", **_: str) -> None:
         self.composio_api_key = composio_api_key
+        self.telegram_bot_token = telegram_bot_token
 
 
 def _get_settings_stub() -> _SettingsStub:
@@ -66,6 +67,10 @@ composio_module = _load_module(
 )
 
 ComposioClient = getattr(composio_module, "ComposioClient")
+SupportChannel = getattr(_load_module(
+    "mcp_customer_service.channels",
+    "src/mcp_customer_service/channels.py",
+), "SupportChannel")
 Settings = _SettingsStub
 
 
@@ -88,6 +93,21 @@ class _DummyActions:
         for values in self._mapping.values():
             merged.extend(values)
         return merged
+
+
+class _DummyInstallations:
+    def __init__(self) -> None:
+        self.created_payloads: List[Dict[str, str]] = []
+
+    def create_installation_link(self, **payload):  # pragma: no cover - simple stub
+        self.created_payloads.append(payload)
+        return {"url": "https://composio.test/install", "connector": payload.get("connector")}
+
+    def list(self, **_kwargs):  # pragma: no cover - simple stub
+        return [
+            {"connector": "gmail", "status": "installed"},
+            {"connector": "whatsapp", "status": "pending"},
+        ]
 
 
 def test_list_available_tools_simulated_mode():
@@ -122,6 +142,7 @@ def test_list_available_tools_live_mode():
                     "linkedin": [{"name": "send_message"}],
                 }
             ),
+            "installations": _DummyInstallations(),
         },
     )()
 
@@ -133,3 +154,59 @@ def test_list_available_tools_live_mode():
     connectors = {entry["channel"]: entry for entry in info["connectors"]}
     assert connectors["whatsapp"]["available"] is True
     assert connectors["linkedin"]["available"] is True
+
+
+def test_generate_installation_link_simulated_mode():
+    settings = Settings(composio_api_key="")
+    client = ComposioClient(settings)
+
+    link = client.generate_installation_link(SupportChannel.gmail, external_user_id="42")
+
+    assert link["status"] == "simulated"
+    assert "url" in link
+
+
+def test_generate_installation_link_live_mode():
+    settings = Settings(composio_api_key="dummy")
+    client = ComposioClient(settings)
+
+    installations = _DummyInstallations()
+    dummy_client = type(
+        "DummyClient",
+        (),
+        {
+            "connectors": _DummyConnectors([{"slug": "gmail"}]),
+            "actions": _DummyActions({"gmail": [{"name": "send_email"}]}),
+            "installations": installations,
+        },
+    )()
+
+    client._client = dummy_client  # type: ignore[attr-defined]
+
+    link = client.generate_installation_link(SupportChannel.gmail, external_user_id="100")
+
+    assert link["status"] == "live"
+    assert link.get("url") == "https://composio.test/install"
+    assert installations.created_payloads[0]["connector"] == "gmail"
+
+
+def test_list_user_installations_live_mode():
+    settings = Settings(composio_api_key="dummy")
+    client = ComposioClient(settings)
+
+    dummy_client = type(
+        "DummyClient",
+        (),
+        {
+            "connectors": _DummyConnectors([{"slug": "gmail"}]),
+            "actions": _DummyActions({"gmail": [{"name": "send_email"}]}),
+            "installations": _DummyInstallations(),
+        },
+    )()
+
+    client._client = dummy_client  # type: ignore[attr-defined]
+
+    info = client.list_user_installations("100")
+
+    assert info["status"] == "live"
+    assert len(info["installations"]) == 2
