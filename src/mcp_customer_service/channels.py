@@ -23,7 +23,9 @@ class ConversationMessage(BaseModel):
 
     role: str
     content: str
-    timestamp: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    timestamp: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc)
+    )
 
 
 class CustomerPayload(BaseModel):

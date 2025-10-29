@@ -108,9 +108,24 @@ La même information est également exposée via `GET /mcp/v1/metadata` pour des
 
 ## Tests
 
+Exécutez la suite depuis la racine du dépôt :
+
 ```bash
 pytest
 ```
+
+Sous Windows, l'équivalent est :
+
+```powershell
+py -m pytest
+```
+
+Les tests ne se contentent pas de vérifier que les modules se chargent : ils
+simulent différentes réponses de l'API Composio pour confirmer que
+`ComposioClient.list_available_tools()` signale correctement l'accès aux
+connecteurs et aux actions attendus. Une fois la suite terminée, vous devez
+obtenir un résumé `1 passed` ou `2 passed` selon les options activées, sans
+erreurs.
 
 ## Licence
 
