@@ -1,0 +1,32 @@
+[project]
+name = "mcp-customer-service"
+version = "0.1.0"
+description = "Serveur MCP pour agent IA de relation client multicanal basé sur ChatGPT et Composio"
+authors = [
+  { name = "Infinity Lookalike", email = "contact@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.23",
+  "pydantic>=2.6",
+  "python-dotenv>=1.0",
+  "openai>=1.10",
+  "mcp>=0.1",
+  "composio>=0.3",
+  "python-telegram-bot>=20.6"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23"
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
